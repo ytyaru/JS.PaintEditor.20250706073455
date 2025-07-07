@@ -1,127 +1,22 @@
 (function(){
-function isStr(v){return 'string'===typeof v||v instanceof String}
-function isRate(v){return Number.isSafeInteger(v) && 0<=v && v<=1}
-function timestamp(dt) {
-    const D = dt instanceof Date ? dt : new Date();
-    return [`${D.getFullYear()}`, `${D.getMonth()+1}`.padStart(2, '0'), `${D.getDate()}`.padStart(2, '0')
-        `${D.getHours()}`.padStart(2, '0'), `${D.getMinutes()}`.padStart(2, '0'), `${D.getSeconds()}`.padStart(2, '0')].join('');
-}
-class FileData {// name,ext,mimeType,quality
-    constructor(name, ext) {
-        this._exts = new Map([['json', 'application/json'], ['png', 'image/png'], ['gif', 'image/gif'], ['jpg', 'image/jpeg'], ['webp', 'image/webp'], ['avif', 'image/avif']]);//ext:mime
-        this._name = `some-{now}`;
-        this._ext = `png`;
-    }
-    get map() {return this._exts}
-    get exts() {return [...this._exts.keys()]}
-    get types() {return [...this._exts.values()]}
-    getType(ext) {return this._exts.get(ext)}//指定キーが無いならundefinedを返す
-    hasExt(v) {return this._exts.has(v)}
-    hasType(v) {return !!this.#getExtFromType(v)}
-
-    get fileName() {return `${this._name}.${this._ext}`}
-    set fileName(v) {
-        if (isStr(v)) {
-            const i = lastIndexOf('.');
-            if (-1===i){console.warn('fileNameには.が必要です。');return}
-            const [N, E] = [v.slice(0, i), v.slice(i+1)];
-            if (!this._exts.has(E)){console.warn(`拡張子は${[...this._exts.keys()]}のいずれかのみ有効です。`);return}
-            [this._name, this._ext] = [N, E];
-        }
-    }
-    get name() {return this._name}
-    set name(v) {if(isStr(v)){this._name=(v || `some-{now}`).replace('{now}', timestamp())}}
-    get ext() {return this._ext}
-    set ext(v) {if (this._exts.has(v)) {this._ext=v}}
-    get type() {return this._exts[this.ext]}
-    set type(v) {this._ext = this.#getExtFromType(v) ?? this._ext;}
-    get quality() {return this._quality}
-    set quality(v) {if(isRate(v)){this._quality=v}}
-    #getExtFromType(v) {
-        for (let [K,V] of this._exts) {
-            if (v===V) {return K}
-        }
-    }
-}
-class Importer {
-    constructor(dndAreaEl, maker, canvas, palette) {
-        this._dndAreaEl = (dndAreaEl instanceof HTMLElement) ? dndAreaEl : document.body;
-        this._maker = maker;
-        this._canvas = canvas;
-        this._palette = palette;
-        this._fileBtn = null;
-        this.#init();
-    }
-    get dndAreaEl() {return this._dndAreaEl}
-    set dndAreaEl(v) {if (v instanceof HTMLElement){this._dndAreaEl=v}}
-    get fileButton() {return this._fileBtn}
-    #init() {
-        this._fileBtn = this.#makeFileBtn();
-        this.#addListener();
-    }
-    #makeFileBtn() {
-        const input = document.createElement('input');
-        input.name = 'import';
-        input.type = 'file';
-        return input;
-    }
-    #addListener() {
-        this._dndAreaEl.addEventListener('dragover', async(e)=>{e.preventDefault();});
-        this._dndAreaEl.addEventListener('drop', async(e)=>{
-            e.preventDefault();
-            const files = !!e.dataTransfer.items ? [...e.dataTransfer.items].filter(item=>'file'===item.kind).map(item=>item.getAsFile()) : [...e.dataTransfer.files];
-            this._dndAreaEl.dispatchEvent(new CustomEvent('load-file', {detail:{files:files}}));
-        });
-        this._dndAreaEl.addEventListener('load-file', async(e)=>{
-            console.log('load-file', e)
-            if (0===e.detail.files.length){return}
-            const file = e.detail.files[0];
-            if (file.type.startsWith('image/')) {
-//                file.arrayBuffer()
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const img = new Image();
-                    img.onload = (evt) => {
-                        console.log(evt)
-//                        this.#newCanvas(this._maker.make(evt.target.width, evt.target.height));
-                        this._editor.newCanvas(this._maker.make(e.target.width, e.target.height));
-                        this._canvas.ctx.drawImage(img, 0, 0);
-                    }
-                    img.src = ev.target.result;
-                };
-                reader.readAsDataURL(file);
-            } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
-                const data = JSON.parse(await file.text());
-                console.log(data)
-            } else {alert('画像かJSONのみ有効です。')}
-                /*
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        this.#newCanvas(this._maker.make(e.target.width, e.target.height));
-                        this._canvas.ctx.drawImage(img, 0, 0);
-                    }
-                    img.src = ev.target.result;
-                };
-                reader.readAsDataURL(file);
-            } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
-
-            }
-            */
-        });
-    }
-}
 class PaintEditor {
     constructor() {
+//        this.#makeEl();
+//        document.body.append(this._canvas.el, this._palette.el, this._export.el, this._maker.el);
         this.#init();
     }
     #init() {
-        this._el = this.#makeEl();
         this._maker = new CanvasMaker();
         this._maker.el.addEventListener('make', async(e)=>{
             this.#newCanvas(e.detail.el);
+            /*
+            if (confirm('既存のキャンバスを破棄して宜しいですか？')) {
+                console.log(e.detail.el)
+                this._canvas.el = e.detail.el;
+                console.log(e.detail.el, document.querySelector('canvas'));
+                document.querySelector('canvas').replaceWith(e.detail.el);
+            }
+            */
         });
         this._canvas = new PaintCanvas(this._maker.make());
         this._palette = new Palette();
@@ -131,46 +26,31 @@ class PaintEditor {
         });
         this._canvas.pen = this._palette.pens[0];
         this._export = new Exporter(this._canvas, this._palette);
-//        this._import = new Importer(this._el, this._canvas, this._palette)
-//        this._el.append(this._canvas.el, this._palette.el, this._export.el, this._maker.el, this._import.fileButton);
-        this._el.append(this._canvas.el, this._palette.el, this._export.el, this._maker.el);
-        this.#addListener();
+        this.#makeEl();
         document.body.append(this._el);
     }
     #makeEl() {
-        const div = document.createElement('div');
-        return div;
+        this._el = document.createElement('div');
+        this._el.append(this._canvas.el, this._palette.el, this._export.el, this._maker.el);
+        this.#addListener();
     }
     #addListener() {
         this._el.addEventListener('dragover', async(e)=>{e.preventDefault();});
         this._el.addEventListener('drop', async(e)=>{
             e.preventDefault();
+            //const isItems = !!e.dataTransfer.items;
+            //this._isItems = !!e.dataTransfer.items;
+            //this._files = this._isItems ? [...e.dataTransfer.items].filter(item=>'file'===item.kind).map(item=>item.getAsFile()) : [...e.dataTransfer.files];
             const files = !!e.dataTransfer.items ? [...e.dataTransfer.items].filter(item=>'file'===item.kind).map(item=>item.getAsFile()) : [...e.dataTransfer.files];
             this._el.dispatchEvent(new CustomEvent('load-file', {detail:{files:files}}));
         });
-        /*
-        this._el.addEventListener('new-canvas', async(e)=>{
-            if (confirm('既存のキャンバスを破棄して宜しいですか？')) {
-                this._canvas.el = e.detail.el;// canvas; // e.detail.el;
-                document.querySelector('canvas').replaceWith(canvas);
-            }
-        });
-        */
         this._el.addEventListener('load-file', async(e)=>{
             console.log('load-file', e)
             if (0===e.detail.files.length){return}
             const file = e.detail.files[0];
             if (file.type.startsWith('image/')) {
-                //this.#loadImageFile(file);
-                await this.#loadImageFile(file);
-            } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
-                await this.#loadJsonFile(file);
-//                const data = JSON.parse(await file.text());
-//                const data = JSON.parse(await file.text());
-//                console.log(data)
-            } else {alert('画像かJSONのみ有効です。')}
-                /*
-            if (file.type.startsWith('image/')) {
+                //this.#loadImageFromFile(file);
+//                await this.#loadImageFromFile(file);
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     const img = new Image();
@@ -184,7 +64,6 @@ class PaintEditor {
             } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
 
             }
-            */
         });
     }
     #newCanvas(canvas) {
@@ -196,75 +75,6 @@ class PaintEditor {
             document.querySelector('canvas').replaceWith(canvas);
         }
     }
-    async #loadImageFile(file) {
-        const dataUrl = await this.#loadFile(file);
-        const img = await this.#loadImageSrc(dataUrl);
-        this.#newCanvas(this._maker.make(img.width, img.height));
-        this._canvas.ctx.drawImage(img, 0, 0);
-    }
-    /*
-    #loadImageFile(file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const img = new Image();
-            img.onload = (evt) => {
-                console.log(evt, img.width, img.height)
-                //this.#newCanvas(this._maker.make(evt.target.width, evt.target.height));
-                this.#newCanvas(this._maker.make(img.width, img.height));
-                this._canvas.ctx.drawImage(img, 0, 0);
-            }
-            img.src = ev.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-    */
-    #loadFile(file) {
-        return new Promise((resolve, reject)=>{
-            const reader = new FileReader();
-            reader.onload = (e)=>resolve(e.target.result);
-            reader.onerror = (e)=>reject(e);
-            reader.readAsDataURL(file);
-        });
-    }
-    #loadImageSrc(src) {
-        return new Promise((resolve, reject)=>{
-            const img = new Image();
-            img.onload = (e)=>resolve(e.target)
-            img.onerror = (e)=>resolve(e);
-            img.src = src;
-        });
-    }
-    async #loadJsonFile(file) {
-        const json = JSON.parse(await file.text());
-        const img = await this.#loadImageSrc(json.data);
-        this.#newCanvas(this._maker.make(img.width, img.height));
-        this._canvas.ctx.drawImage(img, 0, 0);
-        /*
-        const json = JSON.parse(await file.text());
-        console.log(json)
-        //const blobUrl = URL.createObjectURL(file);
-        //const blobUrl = URL.createObjectURL(new Blob([file.arrayBuffer()], {type:file.type}));
-//        const blob = DataUrl.toBlob(json.data);
-//        console.log(blob);
-//        const blobUrl = URL.createObjectURL(blob); // DataURL > Blob > ObjURL > img
-        const img = document.createElement('img');
-        img.onload = (e)=>{
-            this.#newCanvas(this._maker.make(img.width, img.height));
-            this._canvas.ctx.drawImage(img, 0, 0);
-//            this.#newCanvas(this._maker.make(e.target.width, e.target.height));
-//            this._canvas.make(e.target.width, e.target.height)
-//            this.#newCanvas(e.detail.el);
-//            this._canvas.ctx.drawImage(img, 0, 0);
-            e.target.remove();
-        }
-        img.onerror=(e)=>console.error(e);
-        //img.src = blobUrl;
-        img.src = json.data;
-//        document.body.appendChild(img); // 例として body に追加
-//        URL.revokeObjectURL(blobUrl);
-        */
-    }
-    /*
     async #loadImageFromFile(file) {
         if (!(file instanceof Blob)) {throw new TypeError(`Blobであるべきです。`)}
         console.log(file)
@@ -284,7 +94,6 @@ class PaintEditor {
         document.body.appendChild(img); // 例として body に追加
         URL.revokeObjectURL(blobUrl);
     }
-    */
 }
 
 function isValidSize(size) {return Number.isSafeInteger(size) && 0<size}
@@ -641,6 +450,183 @@ class Exporter {
         pens: this._palette.json,
         data: this._canvas.el.toDataURL(mimeType ?? this._mimeType, quality ?? this._quality),
     }}
+}
+class DnDArea {
+    constructor(el) {
+        this._el = el; // DnD area
+        this._eventName = 'dnd-file';
+        this.#addListener();
+    }
+    get el {return this._el}
+    get eventName {return this._eventName}
+    #addListener() {
+        this._el.addEventListener('dragover', async(e)=>{e.preventDefault();});
+        this._el.addEventListener('drop', async(e)=>{
+            e.preventDefault();
+            const files = !!e.dataTransfer.items ? [...e.dataTransfer.items].filter(item=>'file'===item.kind).map(item=>item.getAsFile()) : [...e.dataTransfer.files];
+            this._el.dispatchEvent(new CustomEvent(this._eventName, {detail:{files:files}}));
+        });
+        /*
+        this._el.addEventListener(this._eventName, async(e)=>{
+            console.log('load-file', e)
+            if (0===e.detail.files.length){return}
+            const file = e.detail.files[0];
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+                        this._canvas.ctx.drawImage(img, 0, 0);
+                    }
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
+
+            }
+        });
+        */
+    }
+    #loadFileFromDnD() { return new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = (e) => {
+                this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+                this._canvas.ctx.drawImage(img, 0, 0);
+                resolve(img);
+            }
+            img.onerror = (e) => reject(e);
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });}
+
+}
+class Importer {
+    constructor(dndAreaEl) {
+        this._dndArea = new DnDArea(dndAreaEl);
+        this.#addListener();
+    }
+    #addListener() {
+        /*
+        this._dndAreaEl.addEventListener('dragover', async(e)=>{e.preventDefault();});
+        this._dndAreaEl.addEventListener('drop', async(e)=>{
+            e.preventDefault();
+            const files = !!e.dataTransfer.items ? [...e.dataTransfer.items].filter(item=>'file'===item.kind).map(item=>item.getAsFile()) : [...e.dataTransfer.files];
+            this._dndAreaEl.dispatchEvent(new CustomEvent('load-file', {detail:{files:files}}));
+        });
+        this._dndArea.el.addEventListener(this._dndArea.eventName, async(e)=>{
+            console.log('load-file', e)
+            if (0===e.detail.files.length){return}
+            const file = e.detail.files[0];
+            if (file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+                        this._canvas.ctx.drawImage(img, 0, 0);
+                    }
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
+
+            }
+        });
+        */
+        this._dndArea.el.addEventListener(this._dndArea.eventName, async(e)=>{
+            const file = e.detail.files[0];
+            if (file.type.startsWith('image/')) {
+                await this.#loadImageFile(file);
+            } else if ('type name'.split(' ').some(k=>file[k].endsWith('json'))) {
+                await this.#loadJsonFile(file);
+            } else {alert('画像かJSONファイルのみ有効です。')}
+        });
+    }
+    #readFile(file) { return new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = (e) => {
+                this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+                this._canvas.ctx.drawImage(img, 0, 0);
+                resolve(img);
+            }
+            img.onerror = (e) => reject(e);
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    }); }
+    #loadImageFile(file) {
+        if (!(file instanceof Blob)) {throw new TypeError(`Blobであるべきです。`)}
+        //const blobUrl = URL.createObjectURL(file);
+        const blobUrl = URL.createObjectURL(new Blob([file.arrayBuffer()], {type:file.type}));
+
+
+        return new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = (e) => {
+                this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+                this._canvas.ctx.drawImage(img, 0, 0);
+                resolve(img);
+            }
+            img.onerror = (e) => reject(e);
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });}
+
+
+
+
+    #loadFileFromDnD() { return new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = (e) => {
+                this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+                this._canvas.ctx.drawImage(img, 0, 0);
+                resolve(img);
+            }
+            img.onerror = (e) => reject(e);
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });}
+    #newCanvas(canvas) {
+        if (confirm('既存のキャンバスを破棄して宜しいですか？')) {
+//            console.log(e.detail.el)
+            this._canvas.el = canvas; // e.detail.el;
+//            console.log(e.detail.el, document.querySelector('canvas'));
+//            document.querySelector('canvas').replaceWith(e.detail.el);
+            document.querySelector('canvas').replaceWith(canvas);
+        }
+    }
+    async #loadImageFromFile(file) {
+        if (!(file instanceof Blob)) {throw new TypeError(`Blobであるべきです。`)}
+        console.log(file)
+        //const blobUrl = URL.createObjectURL(file);
+        const blobUrl = URL.createObjectURL(new Blob([file.arrayBuffer()], {type:file.type}));
+        const img = document.createElement('img');
+        img.onload = (e)=>{
+            console.log('XXXXXXXXXXXXXXXX')
+            this.#newCanvas(this._maker.make(e.target.width, e.target.height));
+//            this._canvas.make(e.target.width, e.target.height)
+//            this.#newCanvas(e.detail.el);
+            this._canvas.ctx.drawImage(img, 0, 0);
+            e.target.remove();
+        }
+        img.onerror=(e)=>console.error(e);
+        img.src = blobUrl;
+        document.body.appendChild(img); // 例として body に追加
+        URL.revokeObjectURL(blobUrl);
+    }
+
 }
 window.PaintEditor = PaintEditor;
 })();
