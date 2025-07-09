@@ -48,12 +48,15 @@ class Listener {
         el._listeners = el._listeners.filter(l=>0!==l.handlers.length);
     }
 }
-HTMLElement.prototype.listen = function(name, handler, useCapture=false) {
+// EventTarget <-- Node <-- Element  ElementはEventTargetからプロパティを継承している。
+EventTarget.prototype.listen = function(name, handler, useCapture=false) {//addEventListenerのハンドラ管理版
     Listener.add(this, name, handler, useCapture);
 };
-HTMLElement.prototype.unlisten = function(name, handler, useCapture) {
+EventTarget.prototype.unlisten = function(name, handler, useCapture) {//removeEventListenerのハンドラ管理版
     Listener.remove(this, name, handler, useCapture);
 };
+EventTarget.prototype.tell = function(event) {return this.dispatchEvent(event);}//dispatchEventの糖衣構文版
+
 // 要素を削除するときunlistenする
 // 自身と子孫を削除する（再帰。子孫も削除される。標準APIは再帰せずメモリリークしうるので改善した）
 HTMLElement.prototype._remove = HTMLElement.prototype.remove;
